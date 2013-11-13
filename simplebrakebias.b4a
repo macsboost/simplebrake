@@ -1,0 +1,280 @@
+﻿Version=3
+IconFile=
+NumberOfModules=0
+Package=b4a.example
+DoNotOverwriteManifest=False
+ManifestCode='This code will be applied to the manifest file during compilation.~\n~'You do not need to modify it in most cases.~\n~'See this link for for more information: http://www.basic4ppc.com/forum/showthread.php?p=78136~\n~AddManifestText(~\n~<uses-sdk android:minSdkVersion="4" android:targetSdkVersion="14"/>~\n~<supports-screens android:largeScreens="true" ~\n~    android:normalScreens="true" ~\n~    android:smallScreens="true" ~\n~    android:anyDensity="true"/><uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>)~\n~SetApplicationAttribute(android:icon, "@drawable/icon")~\n~SetApplicationAttribute(android:label, "$LABEL$")~\n~'End of default text.~\n~
+UserTypesHint=
+NumberOfFiles=1
+File1=main.bal
+NumberOfLibraries=4
+Library1=core
+Library2=network
+Library3=reflection
+Library4=stringutils
+@EndOfDesignText@
+#Region  Project Attributes 
+	#ApplicationLabel: BRAKE BIAS TOOL
+	#VersionCode: 1
+	#VersionName: 
+	'SupportedOrientations possible values: unspecified, landscape or portrait.
+	#SupportedOrientations: unspecified
+	#CanInstallToExternalStorage: False
+#End Region
+
+#Region  Activity Attributes 
+	#FullScreen: False
+	#IncludeTitle: True
+#End Region
+
+Sub Process_Globals
+	'These global variables will be declared once when the application starts.
+	'These variables can be accessed from all modules.
+	Dim Timer1 As Timer
+	Dim ConnectedStatus As Boolean
+	Dim ConnectedTimer As Timer
+	Dim DisplayTimer As Timer
+	Dim count As Int
+	Dim UDPSocket1 As UDPSocket
+	Dim UDPPort As Int = 55555
+
+	Dim msgheader As String
+	Dim msgtime As String
+	Dim msgdevid As String
+	Dim chan0 As String
+	Dim chan1 As String
+	Dim chan2 As String
+	Dim chan3 As String
+	Dim chan4 As String
+	Dim chan5 As String
+	Dim chan6 As String
+	Dim chan7 As String
+	Dim chan0val As Float
+	Dim chan1val As Float
+	Dim chan2val As Float
+	Dim chan3val As Float
+	Dim chan4val As Float
+	Dim chan5val As Float
+	Dim chan6val As Float
+	Dim chan7val As Float
+	
+	Dim F2RBias As String
+	Dim L2RBias As String
+	
+	Dim chan0scale As Float = (1.221896383)
+	Dim chan1scale As Float = (1.221896383)
+	Dim chan2scale As Float = (1.221896383)
+	Dim chan3scale As Float = (1.221896383)
+	Dim chan4scale As Float = (2.624814)
+	Dim chan5scale As Float = 0 
+	Dim chan6scale As Float = 0
+	Dim chan7scale As Float = 0
+	
+	Dim chan0zero As Float = (-102.3) 'ashcroft sensor calibration .5v zero, 4.5v 1000psi
+	Dim chan1zero As Float = (-102.3)
+	Dim chan2zero As Float = (-102.3)
+	Dim chan3zero As Float = (-102.3)
+	Dim chan4zero As Float = (-40.92) 'mclaren efi sensor calibration .2V zero, 5v 25777.8psi
+	Dim chan5zero As Float = 0 
+	Dim chan6zero As Float = 0
+	Dim chan7zero As Float = 0
+	
+
+End Sub
+
+Sub Globals
+	'These global variables will be redeclared each time the activity is created.
+	'These variables can only be accessed from this module.
+	Dim IPdisp,packetdisp1,Label1,LF,RF,LR,RR,F2R,L2R,F2Rdisp1,L2Rdisp1,ECUSdisp1,connstatdisp1, LabelLF, LabelRF, LabelLR, LabelRR, LabelECUS, LabelBrakeTolerance As Label
+	Dim LFraw,RFraw,LRraw,RRraw,ECUSraw As Int
+	Dim ProgressBar1 As ProgressBar
+	Dim DebugButton As ToggleButton
+	Dim ZeroButton1 As Button
+
+End Sub
+
+Sub Activity_Create(FirstTime As Boolean)
+	'Do not forget to load the layout file created with the visual designer. For example:
+	Activity.LoadLayout("main")
+   IPdisp.Text=CheckConnectionStatus
+   If FirstTime = True Then	'initialize port the first time only
+   		UDPSocket1.Initialize("UDP", UDPPort, 128)    'Port and buffer size can be changed
+    	ToastMessageShow("Port " & UDPPort & " initialized.",True)
+   		ConnectedTimer.Initialize("ConnectedTimer", 2000) ' 1000 = 1 second
+   		Timer1.Initialize("Timer1", 50) ' 1000 = 1 second
+		DisplayTimer.Initialize("DisplayTimer", 200) ' 1000 = 1 second
+		DebugButton.Initialize("debugbuttonevent")
+   End If
+   Timer1.Enabled = True
+   ConnectedTimer.Enabled = True
+   DisplayTimer.Enabled = True
+   packetdisp1.Visible = False	'debug packet display hide
+   
+End Sub
+
+Sub ZeroButton1_Click
+	
+	ToastMessageShow("Zeroing",False)
+	chan0zero = -chan0
+	chan1zero = -chan1
+	chan2zero = -chan2
+	chan3zero = -chan3
+	chan4zero = -chan4
+	
+	'= Not packetdisp1.Visible()	'make packet debug not visible
+End Sub
+
+
+Sub DebugButton_Click
+	If packetdisp1.Visible Then
+		packetdisp1.Visible = False
+	Else
+		packetdisp1.Visible = True
+	End If
+	
+	'ToastMessageShow("Hit Me",False)
+	'= Not packetdisp1.Visible()	'make packet debug not visible
+End Sub
+
+Sub Activity_Resume
+	Timer1.Enabled = True
+	DisplayTimer.Enabled = True
+End Sub
+
+Sub Activity_Pause (UserClosed As Boolean)
+Timer1.Enabled = False
+DisplayTimer.Enabled = False
+End Sub
+
+Sub ConnectedTimer_Tick	'if no packets seen in 2 seconds then say no comms
+	If ConnectedStatus = True Then
+		connstatdisp1.Text = "Connected"
+		connstatdisp1.Color = Colors.Green
+	Else
+	connstatdisp1.Text = "NO COMMS"
+	connstatdisp1.Color = Colors.Red
+	End If
+	ConnectedStatus = False
+   'Handle tick events
+End Sub
+
+Sub Timer1_Tick
+ ProgressBar1.Progress = count Mod 100
+   'Handle tick events
+End Sub
+
+Sub CheckConnectionStatus As String
+    Dim InterCon As ServerSocket
+    InterCon.Initialize(0, "")
+    If InterCon.GetMyIP = "127.0.0.1" Then 
+       Return ""
+    Else
+      Return InterCon.GetMyIP
+    End If
+End Sub
+
+Sub UDP_PacketArrived (Packet As UDPPacket)
+    Dim msg As String = Null
+    
+	Dim msgitems(20) As String
+	
+	msg = BytesToString(Packet.Data, Packet.Offset, Packet.Length, "UTF8")
+	ConnectedStatus = True	' sets flag true that there is a connection
+	'Msgbox(msg, "message from server")
+	packetdisp1.Text = msg
+	
+	msgitems = Regex.Split(",", msg)
+		
+	 	msgheader = msgitems(0)
+	 	msgdevid = msgitems(1)
+	'If msgheader = "udpfromchipkit!" Then
+		
+	
+		msgtime = msgitems(2)
+		chan0 = msgitems(3)
+		chan1 = msgitems(4)
+		chan2 = msgitems(5)
+		chan3 = msgitems(6)
+		chan4 = msgitems(7)
+		chan5 = msgitems(8)
+		chan6 = msgitems(9)
+		chan7 = msgitems(10)
+		chan0val = (chan0+chan0zero)*chan0scale	' scale to engineering units
+		chan1val = (chan1+chan1zero)*chan1scale
+		chan2val = (chan2+chan2zero)*chan2scale
+		chan3val = (chan3+chan3zero)*chan3scale
+		chan4val = (chan4+chan4zero)*chan4scale
+		chan5val = (chan5+chan5zero)*chan5scale
+		chan6val = (chan6+chan6zero)*chan6scale
+		chan7val = (chan7+chan7zero)*chan7scale
+		
+		
+		If (chan0val+chan1val+chan2val+chan3val)>50 Then
+			F2RBias = ((chan0val+chan1val)/(chan2val+chan3val+chan1val+chan0val) ) ' calculate bias from scaled units if >50psi on all 4 wheels	
+			L2RBias = ((chan1val+chan3val)/(chan1val+chan2val+chan0val+chan3val) )
+			Else
+		End If
+		
+	'End If
+	count= count + 1
+   
+   	'	F2Rdisp1.Text=count
+   	'	L2Rdisp1.Text=count
+
+End Sub
+
+Sub DisplayTimer_Tick	'update screen fields at specified timer intervals
+   'Handle tick events
+   	If ConnectedStatus = True Then
+		Dim braketolerancetemp As Double
+	
+		Label1.Text = msgdevid
+    	If (chan0>25) Then
+			LabelLF.Text = NumberFormat2(chan0val,4,0,0,False)
+		Else
+			LabelLF.Text = "N/C"
+		End If
+  		If (chan1>25) Then
+			LabelRF.Text = NumberFormat2(chan1val,4,0,0,False)
+		Else
+			LabelRF.Text = "N/C"
+		End If
+   		If (chan2>25) Then
+			LabelLR.Text = NumberFormat2(chan2val,4,0,0,False)
+		Else
+			LabelLR.Text = "N/C"
+		End If
+		If (chan3>25) Then
+			LabelRR.Text = NumberFormat2(chan3val,4,0,0,False)
+	   	Else
+			LabelRR.Text = "N/C"
+		End If
+		
+		If (chan0val>50 AND chan1val>50 AND chan2val>50 AND chan3val>50) Then
+			F2Rdisp1.Text = NumberFormat2((F2RBias*100),2,1,1,False)
+   			L2Rdisp1.Text = NumberFormat2((L2RBias*100),2,1,1,False)
+		Else
+			'F2Rdisp1.Text = "Press"
+   			'L2Rdisp1.Text = "Press"
+		End If
+   		
+		If (chan4>25) Then ' if sensor connected, update screen
+			LabelECUS.Text = NumberFormat2(chan4val,4,0,0,False)
+			If (chan4val>100) Then	'if brake psi > 100 then compare the 2
+				braketolerancetemp = ((chan4val/chan2val)-1)*100
+				LabelBrakeTolerance.Text = NumberFormat2(braketolerancetemp,2,2,2,False)
+				If Abs(braketolerancetemp) < 5 Then	' if the ecu sensor is within 5% of the RF, then color the box green
+					LabelBrakeTolerance.Color = Colors.Green
+				Else 
+					LabelBrakeTolerance.Color = Colors.Red
+				End If
+			End If
+		
+		Else
+			LabelECUS.Text = "N/C"
+		End If
+	Else
+	'do nothing if no connection
+	End If
+	
+End Sub
